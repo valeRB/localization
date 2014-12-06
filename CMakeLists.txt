@@ -5,6 +5,7 @@ project(localization)
 find_package(catkin REQUIRED COMPONENTS 
   roscpp 
   robot_msgs
+  rosbag
 #  genmsg
 )
 
@@ -16,10 +17,13 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
  CATKIN_DEPENDS roscpp
     robot_msgs
+    rosbag
+
 )
 
 ## Build talker and listener
 include_directories(include ${catkin_INCLUDE_DIRS})
 add_executable(localization_node src/localization_node.cpp)
+add_dependencies(localization_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(localization_node ${catkin_LIBRARIES})
 

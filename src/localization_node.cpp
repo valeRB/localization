@@ -22,9 +22,12 @@ public:
     robot_msgs::IrTransformMsg sensor_msg;
 
     double x_t, y_t, theta_t;
+    double x_t_odom, y_t_odom, thetha_t_odom;
+    double x_prime, y_prime, theta_prime;
     double resolution;
     int center_x, center_y, height_robot, width_robot, width_map, cellNumber;
     double x_pose_cell, y_pose_cell, prev_x_pose_cell, prev_y_pose_cell;
+    double b, r;
 
     Localize()
     {
@@ -36,8 +39,9 @@ public:
     void init()
     {
         odometry_subscriber = n.subscribe("/arduino/odometry", 1, &Localize::odometryCallback,this);
-        //map_subscriber = n.subscribe("/gridmap", 1, &Localize::mapCallback, this);
+
         sensor_subscriber = n.subscribe("/transformed_ir_points",1, &Localize::sensorCallback,this);
+
         //map_publisher = n.advertise
         cellNumber = 500*500;
         loc_map = std::vector<signed char>(cellNumber,-1);
@@ -47,6 +51,8 @@ public:
         height_robot = 10;
         width_robot = 10;
         width_map = 500;
+        b=0.21;
+        r=0.05;
     }
 
     void getMap()
@@ -70,12 +76,54 @@ public:
         bag.close();
     }
 
-    void odometryCallback(const ras_arduino_msgs::Odometry::ConstPtr &pose_msg)
+    void encoderCallback(const ras_arduino_msgs::Encoders::ConstPtr &enc_msg)
     {
-        x_t = pose_msg->x;
-        y_t = pose_msg->y;
-        theta_t = pose_msg->theta;
+        double delta_enc1 = enc_msg->delta_encoder1;
+        double delta_enc2 = enc_msg->delta_encoder2;
+        double sampleTime = 0.05;
+
+        double AngVelLeft =(delta_enc2 * (M_PI/180))/sampleTime;
+        double AngVelRight =(delta_enc1 * (M_PI/180))/sampleTime;
+
+        // Pose estimate according to formulas from file of Lab3
+        x_t_odom = ((-(r*sin(theta_prime))/2.0)*AngVelLeft + (-(r*sin(theta_prime))/2.0)*AngVelRight)*sampleTime;
+        y_t_odom = (((r*cos(theta_prime))/2.0)*AngVelLeft + ((r*cos(theta_prime))/2.0)*AngVelRight)*sampleTime;
+
+        theta_t = ((-r/b)*AngVelLeft + (r/b)*AngVelRight)*sampleTime;
+        theta_t = angleBoundaries(theta_t);
+
     }
+
+    void poseUpdate(double x_t, double y_t, double theta_t)
+    {
+        ras_arduino_msgs::Odometry odom_msg;
+
+        x_prime = x_prime + x_t;
+        y_prime = y_prime + y_t;
+        theta_prime = theta_prime + theta_t;
+        theta_prime = angleBoundaries(theta_prime);
+        //ROS_INFO("theta_prime %f", theta_prime);
+        ROS_INFO("x_prime %f", x_prime);
+        ROS_INFO("y_prime %f", y_prime);
+        ROS_INFO("theta_prime %f", theta_prime);
+        //Publish message
+        odom_msg.x = x_prime;
+        odom_msg.y = y_prime;
+        odom_msg.theta = theta_prime;
+        odometry_publisher.publish(odom_msg);
+
+        poseStamp_msg.pose.position.x = x_prime + 5.0;
+        poseStamp_msg.pose.position.y = y_prime + 5.0;
+        poseStamp_msg.pose.position.z = 0;
+
+        tf::Quaternion q;
+        q.setEuler(0.0, 0.0, M_PI_2 + theta_prime);
+        tf::quaternionTFToMsg(q, poseStamp_msg.pose.orientation);
+        pose_marker_publisher.publish(poseStamp_msg);
+
+
+    }
+
 
 //    void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &map_msg)
 //    {
@@ -112,6 +160,16 @@ public:
     }
 
 private:
+
+    double angleBoundaries(double theta)
+    {
+        if (theta > 0)
+            theta = fmod(theta + M_PI, 2.0 * M_PI) - M_PI;
+        else
+            theta = fmod(theta - M_PI, 2.0 * M_PI) + M_PI;
+        return theta;
+    }
+
 
 };
 
