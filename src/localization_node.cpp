@@ -1,6 +1,6 @@
 #include "ros/ros.h"
 #include "math.h"
-#include "ras_arduino_msgs/Odometry.h"
+#include "ras_arduino_msgs/Encoders.h"
 #include "robot_msgs/IrTransformMsg.h"
 #include "nav_msgs/OccupancyGrid.h"
 #include "vector"
@@ -15,7 +15,7 @@ class Localize
 {
 public:
     ros::NodeHandle n;
-    ros::Subscriber odometry_subscriber;
+    ros::Subscriber encoder_subscriber;
     //ros::Subscriber map_subscriber;
     ros::Subscriber sensor_subscriber;
     ros::Publisher map_publisher;
@@ -42,10 +42,10 @@ public:
     {}
     void init()
     {
-        odometry_subscriber = n.subscribe("/arduino/odometry", 1, &Localize::odometryCallback,this);
 
+        encoder_subscriber = n.subscribe("/arduino/encoders", 1, &Localize::encoderCallback,this);
         sensor_subscriber = n.subscribe("/transformed_ir_points",1, &Localize::sensorCallback,this);
-        map_publisher = n.advertise<nav_msgs::OccupancyGrid>("/loc/savedmap");
+        map_publisher = n.advertise<nav_msgs::OccupancyGrid>("/loc/savedmap",1);
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
 
 
@@ -123,7 +123,7 @@ public:
         tf::Quaternion q;
         q.setEuler(0.0, 0.0, M_PI_2 + theta_prime);
         tf::quaternionTFToMsg(q, poseStamp_msg.pose.orientation);
-        pose_marker_publisher.publish(poseStamp_msg);
+        pose_publisher.publish(poseStamp_msg);
 
     }
 
