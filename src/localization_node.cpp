@@ -27,18 +27,19 @@ public:
     robot_msgs::IrTransformMsg sensCheck_msg;
     ras_arduino_msgs::ADConverter sensor_msg;
 
-
     double x_t_ir, y_t_ir, theta_t_ir;
     double x_t_odom, y_t_odom, theta_t_odom;
     double x_prime, y_prime, theta_prime;
     double resolution;
     int center_x, center_y, height_robot, width_robot, width_map, cellNumber;
     int x_pose_cell_map, y_pose_cell_map;
+    int wall_x, wall_y;
     double center_x_m, center_y_m;
     double x_pose_cell, y_pose_cell, prev_x_pose_cell, prev_y_pose_cell;
-    double dist_s1, dist_s2, dist_s3, dist_s4;
+    int cell_s1, cell_s2, cell_s3, cell_s4;
     double b, r, sampleTime;
     double eps;
+
 
     Localize()
     {
@@ -56,7 +57,7 @@ public:
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
 
         cellNumber = 500*500;
-        loc_map = std::vector<signed char>(cellNumber,-1);
+        //loc_map = std::vector<signed char>(cellNumber);
         resolution = 0.02; //[m]
         center_x = 250; //[cell]        
         center_y = 250;
@@ -85,8 +86,9 @@ public:
 
         BOOST_FOREACH(rosbag::MessageInstance const m, view)
         {
-            ROS_INFO("in weird foreach");
+            ROS_INFO("Bag successfully loaded... probably");
             map_msg = m.instantiate<nav_msgs::OccupancyGrid>();
+            loc_map = map_msg->data;
         }
 
         bag.close();
@@ -142,19 +144,38 @@ public:
         sensCheck_msg = check_msg;
     }
 
-    void updateWithIR(double dist_up_sens, double dist_down_sens)
+    void updateWithIR(double dist_up_sens, double dist_down_sens, int side)
     {
-        if( (theta_prime == eps) || (theta_prime == -eps) ||
-                (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
+        if(side == 1) //left side
         {
-            //update only x_t with IR sensors
+            if( (theta_prime == eps) || (theta_prime == -eps) ||
+                    (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
+            {
+                //update only x_t with IR sensors
+                findWall(x_prime, y_prime, side, "x");
+                x_t_cell = wall_x +
 
-
+            }
+            else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
+                     (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+            {
+                //update only y_t with IR sensors
+            }
         }
-        else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
-                 (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+        if(side == 2) //right side
         {
-            //update only y_t with IR sensors
+            if( (theta_prime == eps) || (theta_prime == -eps) ||
+                    (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
+            {
+                //update only x_t with IR sensors
+                x_cell = findWall(x_pri)
+
+            }
+            else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
+                     (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+            {
+                //update only y_t with IR sensors
+            }
         }
     }
 
@@ -162,15 +183,15 @@ public:
     {
         if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
         {
-            dist_s1 = sensor_msg.ch1/100;
-            dist_s3 = sensor_msg.ch3/100;
-            updateWithIR(dist_s1, dist_s3);
+            cell_s1 = sensor_msg.ch1/2;
+            cell_s3 = sensor_msg.ch3/100;
+            updateWithIR(cell_s1, cell_s3, 1); //1: left side
         }
         else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true))
         {
-            dist_s2 = sensor_msg.ch2/100;
-            dist_s4 = sensor_msg.ch4/100;
-            updateWithIR(dist_s2, dist_s4);
+            cell_s2 = sensor_msg.ch2/100;
+            cell_s4 = sensor_msg.ch4/100;
+            updateWithIR(cell_s2, cell_s4, 2); //2: left side
         }
         else
         {
@@ -178,6 +199,33 @@ public:
             poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
         }
     }
+
+    int findWall(double x_dist, double y_dist, int side, std::string loop_over)
+    {
+        int x_cell = floor((center_x_m + x_dist)/resolution);
+        int y_cell = floor((center_x_m + y_dist)/resolution);
+        while(loc_map[x_cell+width_map*y_cell] != 150)
+        {
+            if(side == 1)
+            {
+                if(loop_over == "x")
+                    x_cell--;
+                if(loop_over == "y")
+                    y_cell--;
+            }
+            if(side == 2)
+            {
+                if(loop_over == "x")
+                    x_cell++;
+                if(loop_over == "y")
+                    y_cel++;
+            }
+        }
+        wall_x = x_cell;
+        wall_y = y_cell;
+
+    }
+
 
     void publishMap()
     {
