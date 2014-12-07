@@ -32,6 +32,7 @@ public:
     int center_x, center_y, height_robot, width_robot, width_map, cellNumber;
     double x_pose_cell, y_pose_cell, prev_x_pose_cell, prev_y_pose_cell;
     double b, r, sampleTime;
+    double eps;
 
     Localize()
     {
@@ -63,13 +64,15 @@ public:
         y_prime = 0;
         theta_prime = 0;
         sampleTime = 0.05;
+        eps = 5*(M_PI/180);//equivalent to 5deg; given in [rad]
+        ROS_INFO_ONCE("EPSILON", eps);
     }
 
     void getMap()
     {
 
         rosbag::Bag bag;
-        bag.open("map_test.bag", rosbag::bagmode::Read);
+        bag.open("/home/ras/.ros/map_test_2.bag", rosbag::bagmode::Read);
 
         //std::vector<std::string> topics;
         //topics.push_back(std::string("chatter"));
@@ -131,13 +134,30 @@ public:
     void sensorCallback(const robot_msgs::IrTransformMsg &msg)
     {
         sensor_msg = msg;
+
+
     }
-/*
-    void updateLocOdom()
+
+    void updateLocalization()
     {
-        //if we get good measurements and check for theta conditions we will update pose with either
-        // of the two estimates of x_t,y_t,theta_t.
-    }*/
+        // 0 condition
+        if( (theta_prime == eps) || (theta_prime == -eps) ||
+                (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
+        {
+            //update only x_t with IR sensors
+        }
+        else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
+                 (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+        {
+            //update only y_t with IR sensors
+        }
+        else
+        {
+            //update with odometry
+            poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+        }
+
+    }
     void publishMap()
     {
         map_publisher.publish(map_msg);
@@ -164,12 +184,14 @@ int main(int argc, char **argv)
     Localize loc;
     loc.init();
     loc.getMap();
-    loc.publishMap();
+
+
     ros::Rate loop_rate(20.0);
 
     while(loc.n.ok())
     {
         ros::spinOnce();
+        loc.publishMap();
         loop_rate.sleep();
     }
 
