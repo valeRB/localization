@@ -137,32 +137,25 @@ public:
         sensor_msg = sens_msg;
     }
 
-
     void sensorCheckCallback(const robot_msgs::IrTransformMsg &check_msg)
     {
         sensCheck_msg = check_msg;
-
     }
 
     void updateWithIR(double dist_up_sens, double dist_down_sens)
     {
-        // 0 condition
         if( (theta_prime == eps) || (theta_prime == -eps) ||
                 (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
         {
             //update only x_t with IR sensors
+
+
         }
         else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
                  (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
         {
             //update only y_t with IR sensors
         }
-        else
-        {
-            //update with odometry
-            poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
-        }
-
     }
 
     void updateLocalization()
@@ -170,9 +163,20 @@ public:
         if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
         {
             dist_s1 = sensor_msg.ch1/100;
-            updateWithIR(sensor_ms);
+            dist_s3 = sensor_msg.ch3/100;
+            updateWithIR(dist_s1, dist_s3);
         }
-
+        else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true))
+        {
+            dist_s2 = sensor_msg.ch2/100;
+            dist_s4 = sensor_msg.ch4/100;
+            updateWithIR(dist_s2, dist_s4);
+        }
+        else
+        {
+            //update only with odometry
+            poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+        }
     }
 
     void publishMap()
