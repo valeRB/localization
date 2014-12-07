@@ -163,7 +163,8 @@ int main(int argc, char **argv)
 
     Localize loc;
     loc.init();
-
+    loc.getMap();
+    loc.publishMap();
     ros::Rate loop_rate(20.0);
 
     while(loc.n.ok())
