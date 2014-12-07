@@ -51,7 +51,7 @@ public:
     void init()
     {
         sensor_subscriber = n.subscribe("/ir_sensor_cm", 1, &Localize::sensorCallback, this);
-        sensor_check_sub = n.subscribe("/transformed_ir_points",1, &OccupancyGrid::sensorCallback,this);
+        sensor_check_sub = n.subscribe("/transformed_ir_points",1, &Localize::sensorCallback,this);
         encoder_subscriber = n.subscribe("/arduino/encoders", 1, &Localize::encoderCallback,this);        
         map_publisher = n.advertise<nav_msgs::OccupancyGrid>("/loc/savedmap",1);
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
@@ -153,7 +153,7 @@ public:
             {
                 //update only x_t with IR sensors
                 findWall(x_prime, y_prime, side, "x");
-                x_t_cell = wall_x +
+                //x_t_cell = wall_x +
 
             }
             else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
@@ -168,7 +168,7 @@ public:
                     (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
             {
                 //update only x_t with IR sensors
-                x_cell = findWall(x_pri)
+                //x_cell = findWall(x_pri)
 
             }
             else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
@@ -218,7 +218,7 @@ public:
                 if(loop_over == "x")
                     x_cell++;
                 if(loop_over == "y")
-                    y_cel++;
+                    y_cell++;
             }
         }
         wall_x = x_cell;
