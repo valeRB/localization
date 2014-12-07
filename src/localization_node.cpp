@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include "math.h"
 #include "ras_arduino_msgs/Encoders.h"
+#include "ras_arduino_msgs/ADConverter.h"
 #include "robot_msgs/IrTransformMsg.h"
 #include "nav_msgs/OccupancyGrid.h"
 #include "vector"
@@ -16,21 +17,26 @@ class Localize
 public:
     ros::NodeHandle n;
     ros::Subscriber encoder_subscriber;
-    //ros::Subscriber map_subscriber;
+    ros::Subscriber sensor_check_sub;
     ros::Subscriber sensor_subscriber;
     ros::Publisher map_publisher;
     ros::Publisher pose_publisher;
     nav_msgs::OccupancyGrid::ConstPtr map_msg;
     std::vector<signed char> grid_map, loc_map;
     geometry_msgs::PoseStamped poseStamp_msg;
-    robot_msgs::IrTransformMsg sensor_msg;
+    robot_msgs::IrTransformMsg sensCheck_msg;
+    ras_arduino_msgs::ADConverter sensor_msg;
+
 
     double x_t_ir, y_t_ir, theta_t_ir;
     double x_t_odom, y_t_odom, theta_t_odom;
     double x_prime, y_prime, theta_prime;
     double resolution;
     int center_x, center_y, height_robot, width_robot, width_map, cellNumber;
+    int x_pose_cell_map, y_pose_cell_map;
+    double center_x_m, center_y_m;
     double x_pose_cell, y_pose_cell, prev_x_pose_cell, prev_y_pose_cell;
+    double dist_s1, dist_s2, dist_s3, dist_s4;
     double b, r, sampleTime;
     double eps;
 
@@ -43,18 +49,19 @@ public:
     {}
     void init()
     {
-
-        encoder_subscriber = n.subscribe("/arduino/encoders", 1, &Localize::encoderCallback,this);
-        sensor_subscriber = n.subscribe("/transformed_ir_points",1, &Localize::sensorCallback,this);
+        sensor_subscriber = n.subscribe("/ir_sensor_cm", 1, &Localize::sensorCallback, this);
+        sensor_check_sub = n.subscribe("/transformed_ir_points",1, &OccupancyGrid::sensorCallback,this);
+        encoder_subscriber = n.subscribe("/arduino/encoders", 1, &Localize::encoderCallback,this);        
         map_publisher = n.advertise<nav_msgs::OccupancyGrid>("/loc/savedmap",1);
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
-
 
         cellNumber = 500*500;
         loc_map = std::vector<signed char>(cellNumber,-1);
         resolution = 0.02; //[m]
-        center_x = 250; //[cell]
+        center_x = 250; //[cell]        
         center_y = 250;
+        center_x_m = 5.0; //[m]
+        center_y_m = 5.0; //[m]
         height_robot = 10;
         width_robot = 10;
         width_map = 500;
@@ -73,10 +80,6 @@ public:
 
         rosbag::Bag bag;
         bag.open("/home/ras/.ros/map_test_2.bag", rosbag::bagmode::Read);
-
-        //std::vector<std::string> topics;
-        //topics.push_back(std::string("chatter"));
-        //topics.push_back(std::string("numbers"));
 
         rosbag::View view(bag, rosbag::TopicQuery("/gridmap"));
 
@@ -117,10 +120,9 @@ public:
         ROS_INFO("x_prime %f", x_prime);
         ROS_INFO("y_prime %f", y_prime);
         ROS_INFO("theta_prime %f", theta_prime);
-        //Publish message
 
-        poseStamp_msg.pose.position.x = x_prime + 5.0;
-        poseStamp_msg.pose.position.y = y_prime + 5.0;
+        poseStamp_msg.pose.position.x = x_prime + center_x_m;
+        poseStamp_msg.pose.position.y = y_prime + center_y_m;
         poseStamp_msg.pose.position.z = 0;
 
         tf::Quaternion q;
@@ -130,15 +132,19 @@ public:
 
     }
 
-
-    void sensorCallback(const robot_msgs::IrTransformMsg &msg)
+    void sensorCallback(const ras_arduino_msgs::ADConverter &sens_msg)
     {
-        sensor_msg = msg;
+        sensor_msg = sens_msg;
+    }
 
+
+    void sensorCheckCallback(const robot_msgs::IrTransformMsg &check_msg)
+    {
+        sensCheck_msg = check_msg;
 
     }
 
-    void updateLocalization()
+    void updateWithIR(double dist_up_sens, double dist_down_sens)
     {
         // 0 condition
         if( (theta_prime == eps) || (theta_prime == -eps) ||
@@ -158,6 +164,17 @@ public:
         }
 
     }
+
+    void updateLocalization()
+    {
+        if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
+        {
+            dist_s1 = sensor_msg.ch1/100;
+            updateWithIR(sensor_ms);
+        }
+
+    }
+
     void publishMap()
     {
         map_publisher.publish(map_msg);
