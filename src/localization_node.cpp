@@ -72,8 +72,9 @@ public:
         r=0.05;
 
         sampleTime = 0.05;
-        eps = 8*(M_PI/180);//equivalent to 8 deg; given in [rad]
-        ROS_INFO_ONCE("EPSILON", eps);
+        eps = 8*(M_PI/180.0);//equivalent to 8 deg; given in [rad]
+        poseStamp_msg.header.frame_id = "map";
+        poseStamp_msg.header.stamp = ros::Time(0);
     }   
 
     void getInitialPose()
@@ -120,7 +121,7 @@ public:
         theta_t_odom = ((-r/b)*AngVelLeft + (r/b)*AngVelRight)*sampleTime;
         theta_t_odom = angleBoundaries(theta_t_odom);
 
-        updateLocalization();
+
 
     }
 
@@ -164,69 +165,101 @@ public:
             //update only x_t with IR sensors
             ROS_INFO_ONCE("side %d, angle 0", side);
             findWall(x_prime, y_prime, side, 1);
-            if(side == 1)
+            if(wall_x != 0)
             {
-                x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+                if(side == 1)
+                {
+                    x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+                }
+                if(side == 2)
+                {
+                    x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+                }
+                poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
             }
-            if(side == 2)
+            if(wall_x == 0)
             {
-                x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
-            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+
         }
         else if((theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps))
         {
             //update only x_t with IR sensors
             ROS_INFO_ONCE("side %d, angle pi/-pi", side);
             findWall(x_prime, y_prime, side, 3);
-            if(side == 1)
+            if(wall_x != 0)
             {
-                x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+                if(side == 1)
+                {
+                    x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+                }
+                if(side == 2)
+                {
+                    x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+                }
+                poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
             }
-            if(side == 2)
+            if(wall_x == 0)
             {
-                x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
-            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
         }
         else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) )
         {
             //update only y_t with IR sensors
             ROS_INFO_ONCE("side %d, angle pi/2", side);
             findWall(x_prime, y_prime, side, 2);
-            if(side == 1)
+            if(wall_y != 0)
             {
-                y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
+                if(side == 1)
+                {
+                    y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
+                }
+                if(side == 2)
+                {
+                    y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
+                }
+                poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
             }
-            if(side == 2)
+            if(wall_y == 0)
             {
-                y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
-            poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
         }
         else if( (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
         {
             //update only y_t with IR sensors
             ROS_INFO_ONCE("side %d, angle -pi/2", side);
             findWall(x_prime, y_prime, side, 4);
-            if(side == 1)
+            if(wall_y != 0)
             {
-                y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
+                if(side == 1)
+                {
+                    y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
+                }
+                if(side == 2)
+                {
+                    y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
+                }
+                poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
             }
-            if(side == 2)
+            if(wall_y == 0)
             {
-                y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
-            poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
         }
     }
 
 
-    void findWall(double x_dist, double y_dist, int side, int angle)
+    void findWall(double x_dist, double y_dist, int side, int angle, double dist)
     {
+        int cell_dist = floor(dist/resolution);
+        int margin_cell = 5;
         int x_cell = floor((center_x_m + x_dist)/resolution);
         int y_cell = floor((center_x_m + y_dist)/resolution);
-        while(loc_map[x_cell+width_map*y_cell] != 150)
+        while( (loc_map[x_cell+width_map*y_cell] != 150) ||
+              (x_cell < cell_dist + margin_cell) || (y_cell < cell_dist + margin_cell) )
         {
             // at angle 0
             if(side == 1 && angle == 1)
@@ -265,9 +298,18 @@ public:
                 y_cell--;
             }
         }
-        wall_x = x_cell;
-        wall_y = y_cell;
-
+        if( (x_cell == cell_dist + margin_cell -1) ||
+                (y_cell == cell_dist + margin_cell -1) )
+        {
+            ROS_INFO("Found no wall");
+            wall_x = 0;
+            wall_y = 0;
+        }
+        else
+        {
+            wall_x = x_cell;
+            wall_y = y_cell;
+        }
     }
 
     void poseUpdate(double x_t, double y_t, double theta_t)
@@ -326,6 +368,7 @@ int main(int argc, char **argv)
     while(loc.n.ok())
     {
         ros::spinOnce();
+        loc.updateLocalization();
         loc.publishMap();
         loop_rate.sleep();
     }
