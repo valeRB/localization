@@ -38,7 +38,7 @@ public:
     double center_x_m, center_y_m, dist;
     double x_pose_cell, y_pose_cell, prev_x_pose_cell, prev_y_pose_cell;
     double dist_s1, dist_s2, dist_s3, dist_s4;
-    double b, r, sampleTime;
+    double b, r, sampleTime, robot_radius;
     double eps;
 
 
@@ -67,11 +67,12 @@ public:
         height_robot = 10;
         width_robot = 10;
         width_map = 500;
+        robot_radius = 0.065; //[m]
         b=0.21;
         r=0.05;
 
         sampleTime = 0.05;
-        eps = 5*(M_PI/180);//equivalent to 5deg; given in [rad]
+        eps = 8*(M_PI/180);//equivalent to 8 deg; given in [rad]
         ROS_INFO_ONCE("EPSILON", eps);
     }   
 
@@ -119,30 +120,10 @@ public:
         theta_t_odom = ((-r/b)*AngVelLeft + (r/b)*AngVelRight)*sampleTime;
         theta_t_odom = angleBoundaries(theta_t_odom);
 
-    }
-
-    void poseUpdate(double x_t, double y_t, double theta_t)
-    {
-
-        x_prime = x_prime + x_t;
-        y_prime = y_prime + y_t;
-        theta_prime = theta_prime + theta_t;
-        theta_prime = angleBoundaries(theta_prime);
-        //ROS_INFO("theta_prime %f", theta_prime);
-        ROS_INFO("x_prime %f", x_prime);
-        ROS_INFO("y_prime %f", y_prime);
-        ROS_INFO("theta_prime %f", theta_prime);
-
-        poseStamp_msg.pose.position.x = x_prime + center_x_m;
-        poseStamp_msg.pose.position.y = y_prime + center_y_m;
-        poseStamp_msg.pose.position.z = 0;
-
-        tf::Quaternion q;
-        q.setEuler(0.0, 0.0, M_PI_2 + theta_prime);
-        tf::quaternionTFToMsg(q, poseStamp_msg.pose.orientation);
-        pose_publisher.publish(poseStamp_msg);
+        updateLocalization();
 
     }
+
 
     void sensorCallback(const ras_arduino_msgs::ADConverter &sens_msg)
     {
@@ -152,58 +133,6 @@ public:
     void sensorCheckCallback(const robot_msgs::IrTransformMsg &check_msg)
     {
         sensCheck_msg = check_msg;
-    }
-
-    void updateWithIR(double dist_up_sens, double dist_down_sens, int side)
-    {
-        dist = (dist_up_sens + dist_down_sens)/2;
-        if( (theta_prime == eps) || (theta_prime == -eps) )
-        {
-            //update only x_t with IR sensors
-            ROS_INFO("side %d, angle 0", side);
-            findWall(x_prime, y_prime, side, 1);
-            if(side == 1)
-            {
-
-            }
-            if(side == 2)
-            {
-
-            }
-            x_t_cell = wall_x + dist;
-            x_t_ir = (x_t_cell*resolution) - center_x_m;
-            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
-        }
-        else if((theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps))
-        {
-            //update only x_t with IR sensors
-            ROS_INFO("side %d, angle pi/-pi", side);
-            findWall(x_prime, y_prime, side, 3);
-            x_t_cell = wall_x + dist;
-            x_t_ir = (x_t_cell*resolution) - center_x_m;
-            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
-        }
-        else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) )
-        {
-            //update only y_t with IR sensors
-            ROS_INFO("side %d, angle pi/2", side);
-            findWall(x_prime, y_prime, side, 2);
-            y_t_cell = wall_y + dist;
-            x_t_ir = (x_t_cell*resolution) - center_y_m;
-            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
-        }
-        else if( (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
-        {
-            //update only y_t with IR sensors
-            ROS_INFO("side %d, angle -pi/2", side);
-            findWall(x_prime, y_prime, side, 4);
-            y_t_cell = wall_y + dist;
-            x_t_ir = (x_t_cell*resolution) - center_y_m;
-            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
-        }
-        else
-            poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
-
     }
 
     void updateLocalization()
@@ -226,6 +155,72 @@ public:
             poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
         }
     }
+
+    void updateWithIR(double dist_up_sens, double dist_down_sens, int side)
+    {
+        dist = (dist_up_sens + dist_down_sens)/2;
+        if( (theta_prime == eps) || (theta_prime == -eps) )
+        {
+            //update only x_t with IR sensors
+            ROS_INFO_ONCE("side %d, angle 0", side);
+            findWall(x_prime, y_prime, side, 1);
+            if(side == 1)
+            {
+                x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+            }
+            if(side == 2)
+            {
+                x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+            }
+            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+        }
+        else if((theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps))
+        {
+            //update only x_t with IR sensors
+            ROS_INFO_ONCE("side %d, angle pi/-pi", side);
+            findWall(x_prime, y_prime, side, 3);
+            if(side == 1)
+            {
+                x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+            }
+            if(side == 2)
+            {
+                x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+            }
+            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+        }
+        else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) )
+        {
+            //update only y_t with IR sensors
+            ROS_INFO_ONCE("side %d, angle pi/2", side);
+            findWall(x_prime, y_prime, side, 2);
+            if(side == 1)
+            {
+                y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
+            }
+            if(side == 2)
+            {
+                y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
+            }
+            poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
+        }
+        else if( (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+        {
+            //update only y_t with IR sensors
+            ROS_INFO_ONCE("side %d, angle -pi/2", side);
+            findWall(x_prime, y_prime, side, 4);
+            if(side == 1)
+            {
+                y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
+            }
+            if(side == 2)
+            {
+                y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
+            }
+            poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
+        }
+    }
+
 
     void findWall(double x_dist, double y_dist, int side, int angle)
     {
@@ -275,6 +270,28 @@ public:
 
     }
 
+    void poseUpdate(double x_t, double y_t, double theta_t)
+    {
+
+        x_prime = x_prime + x_t;
+        y_prime = y_prime + y_t;
+        theta_prime = theta_prime + theta_t;
+        theta_prime = angleBoundaries(theta_prime);
+        //ROS_INFO("theta_prime %f", theta_prime);
+        ROS_INFO("x_prime %f", x_prime);
+        ROS_INFO("y_prime %f", y_prime);
+        ROS_INFO("theta_prime %f", theta_prime);
+
+        poseStamp_msg.pose.position.x = x_prime + center_x_m;
+        poseStamp_msg.pose.position.y = y_prime + center_y_m;
+        poseStamp_msg.pose.position.z = 0;
+
+        tf::Quaternion q;
+        q.setEuler(0.0, 0.0, M_PI_2 + theta_prime);
+        tf::quaternionTFToMsg(q, poseStamp_msg.pose.orientation);
+        pose_publisher.publish(poseStamp_msg);
+
+    }
 
     void publishMap()
     {
