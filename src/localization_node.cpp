@@ -138,14 +138,17 @@ public:
 
     void updateLocalization()
     {
-        if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
-        {
+        if ( (sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true) &&
+                (abs(sensor_msg.ch1 - sensor_msg.ch3) < 3) )
+        {            
             dist_s1 = sensor_msg.ch1/100.0;
             dist_s3 = sensor_msg.ch3/100.0;
             updateWithIR(dist_s1, dist_s3, 1); //1: left side
         }
-        else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true))
+        else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true) &&
+                 (abs(sensor_msg.ch2 - sensor_msg.ch4) < 3) )
         {
+            ROS_INFO("both sensors on right side")
             dist_s2 = sensor_msg.ch2/100.0;
             dist_s4 = sensor_msg.ch4/100.0;
             updateWithIR(dist_s2, dist_s4, 2); //2: left side
