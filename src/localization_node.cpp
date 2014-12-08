@@ -34,9 +34,10 @@ public:
     int center_x, center_y, height_robot, width_robot, width_map, cellNumber;
     int x_pose_cell_map, y_pose_cell_map;
     int wall_x, wall_y;
-    double center_x_m, center_y_m;
+    int x_t_cell, y_t_cell;
+    double center_x_m, center_y_m, dist;
     double x_pose_cell, y_pose_cell, prev_x_pose_cell, prev_y_pose_cell;
-    int cell_s1, cell_s2, cell_s3, cell_s4;
+    double dist_s1, dist_s2, dist_s3, dist_s4;
     double b, r, sampleTime;
     double eps;
 
@@ -68,14 +69,23 @@ public:
         width_map = 500;
         b=0.21;
         r=0.05;
-        x_prime = 0;
-        y_prime = 0;
-        theta_prime = 0;
+
         sampleTime = 0.05;
         eps = 5*(M_PI/180);//equivalent to 5deg; given in [rad]
         ROS_INFO_ONCE("EPSILON", eps);
-    }
+    }   
 
+    void getInitialPose()
+    {
+        x_prime = 0;
+        y_prime = 0;
+        if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
+            theta_prime = asin((sensor_msg.ch1 - sensor_msg.ch3)/13.5);
+        else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true))
+            theta_prime = asin((sensor_msg.ch4 - sensor_msg.ch2)/13.5);
+        else
+            theta_prime = 0;
+    }
     void getMap()
     {
 
@@ -146,52 +156,69 @@ public:
 
     void updateWithIR(double dist_up_sens, double dist_down_sens, int side)
     {
-        if(side == 1) //left side
+        dist = (dist_up_sens + dist_down_sens)/2;
+        if( (theta_prime == eps) || (theta_prime == -eps) )
         {
-            if( (theta_prime == eps) || (theta_prime == -eps) ||
-                    (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
+            //update only x_t with IR sensors
+            ROS_INFO("side %d, angle 0", side);
+            findWall(x_prime, y_prime, side, 1);
+            if(side == 1)
             {
-                //update only x_t with IR sensors
-                findWall(x_prime, y_prime, side, "x");
-                //x_t_cell = wall_x +
 
             }
-            else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
-                     (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+            if(side == 2)
             {
-                //update only y_t with IR sensors
-            }
-        }
-        if(side == 2) //right side
-        {
-            if( (theta_prime == eps) || (theta_prime == -eps) ||
-                    (theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps) )
-            {
-                //update only x_t with IR sensors
-                //x_cell = findWall(x_pri)
 
             }
-            else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) ||
-                     (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
-            {
-                //update only y_t with IR sensors
-            }
+            x_t_cell = wall_x + dist;
+            x_t_ir = (x_t_cell*resolution) - center_x_m;
+            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
         }
+        else if((theta_prime == M_PI - eps) || (theta_prime == -M_PI + eps))
+        {
+            //update only x_t with IR sensors
+            ROS_INFO("side %d, angle pi/-pi", side);
+            findWall(x_prime, y_prime, side, 3);
+            x_t_cell = wall_x + dist;
+            x_t_ir = (x_t_cell*resolution) - center_x_m;
+            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+        }
+        else if( (theta_prime == M_PI_2 + eps) || (theta_prime == M_PI_2 - eps) )
+        {
+            //update only y_t with IR sensors
+            ROS_INFO("side %d, angle pi/2", side);
+            findWall(x_prime, y_prime, side, 2);
+            y_t_cell = wall_y + dist;
+            x_t_ir = (x_t_cell*resolution) - center_y_m;
+            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+        }
+        else if( (theta_prime == -M_PI_2 + eps) || (theta_prime == -M_PI_2 - eps) )
+        {
+            //update only y_t with IR sensors
+            ROS_INFO("side %d, angle -pi/2", side);
+            findWall(x_prime, y_prime, side, 4);
+            y_t_cell = wall_y + dist;
+            x_t_ir = (x_t_cell*resolution) - center_y_m;
+            poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+        }
+        else
+            poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+
     }
 
     void updateLocalization()
     {
         if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
         {
-            cell_s1 = sensor_msg.ch1/2;
-            cell_s3 = sensor_msg.ch3/100;
-            updateWithIR(cell_s1, cell_s3, 1); //1: left side
+            dist_s1 = sensor_msg.ch1/100.0;
+            dist_s3 = sensor_msg.ch3/100.0;
+            updateWithIR(dist_s1, dist_s3, 1); //1: left side
         }
         else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true))
         {
-            cell_s2 = sensor_msg.ch2/100;
-            cell_s4 = sensor_msg.ch4/100;
-            updateWithIR(cell_s2, cell_s4, 2); //2: left side
+            dist_s2 = sensor_msg.ch2/100.0;
+            dist_s4 = sensor_msg.ch4/100.0;
+            updateWithIR(dist_s2, dist_s4, 2); //2: left side
         }
         else
         {
@@ -200,25 +227,47 @@ public:
         }
     }
 
-    int findWall(double x_dist, double y_dist, int side, std::string loop_over)
+    void findWall(double x_dist, double y_dist, int side, int angle)
     {
         int x_cell = floor((center_x_m + x_dist)/resolution);
         int y_cell = floor((center_x_m + y_dist)/resolution);
         while(loc_map[x_cell+width_map*y_cell] != 150)
         {
-            if(side == 1)
+            // at angle 0
+            if(side == 1 && angle == 1)
             {
-                if(loop_over == "x")
-                    x_cell--;
-                if(loop_over == "y")
-                    y_cell--;
+                x_cell--;
             }
-            if(side == 2)
+            if(side == 2 && angle == 1)
             {
-                if(loop_over == "x")
-                    x_cell++;
-                if(loop_over == "y")
-                    y_cell++;
+                x_cell++;
+            }
+            // at angle pi/2
+            if(side == 1 && angle == 2)
+            {
+                y_cell--;
+            }
+            if(side == 2 && angle == 2)
+            {
+                y_cell++;
+            }
+            // at angle -pi or pi
+            if(side == 1 && angle == 3)
+            {
+                x_cell++;
+            }
+            if(side == 2 && angle == 3)
+            {
+                x_cell--;
+            }
+            // at angle -pi/2
+            if(side == 1 && angle == 4)
+            {
+                y_cell++;
+            }
+            if(side == 2 && angle == 4)
+            {
+                y_cell--;
             }
         }
         wall_x = x_cell;
