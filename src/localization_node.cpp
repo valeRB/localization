@@ -164,7 +164,7 @@ public:
         {
             //update only x_t with IR sensors
             ROS_INFO_ONCE("side %d, angle 0", side);
-            findWall(x_prime, y_prime, side, 1);
+            findWall(x_prime, y_prime, side, 1, dist);
             if(wall_x != 0)
             {
                 if(side == 1)
@@ -187,7 +187,7 @@ public:
         {
             //update only x_t with IR sensors
             ROS_INFO_ONCE("side %d, angle pi/-pi", side);
-            findWall(x_prime, y_prime, side, 3);
+            findWall(x_prime, y_prime, side, 3, dist);
             if(wall_x != 0)
             {
                 if(side == 1)
@@ -209,7 +209,7 @@ public:
         {
             //update only y_t with IR sensors
             ROS_INFO_ONCE("side %d, angle pi/2", side);
-            findWall(x_prime, y_prime, side, 2);
+            findWall(x_prime, y_prime, side, 2,dist);
             if(wall_y != 0)
             {
                 if(side == 1)
@@ -231,7 +231,7 @@ public:
         {
             //update only y_t with IR sensors
             ROS_INFO_ONCE("side %d, angle -pi/2", side);
-            findWall(x_prime, y_prime, side, 4);
+            findWall(x_prime, y_prime, side, 4, dist);
             if(wall_y != 0)
             {
                 if(side == 1)
