@@ -151,7 +151,7 @@ public:
         {            
             dist_s2 = sensor_msg.ch2/100.0;
             dist_s4 = sensor_msg.ch4/100.0;
-            updateWithIR(dist_s2, dist_s4, 2); //2: left side
+            updateWithIR(dist_s2, dist_s4, 2); //2: right side
         }
         else
         {            
@@ -166,24 +166,26 @@ public:
         if( ((theta_prime <= eps) && (theta_prime >= 0)) ||
                 ((theta_prime <= 0) && (theta_prime >= -eps)) )
         {
-            //update only x_t with IR sensors
-
+            //update only x_t with IR sensors            
             findWall(x_prime, y_prime, side, 1, dist);
             if(wall_x != 0)
-            {
-                ROS_INFO("angle 0 found a wall");
+            {                
                 if(side == 1)
                 {
                     x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
+                    ROS_INFO("side 1, x_t: %f", x_t_ir);
                 }
                 if(side == 2)
                 {
-                    x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;
+                    x_t_ir = wall_x*resolution - (dist + robot_radius) - center_x_m;                    
                 }
-                poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+                ROS_INFO("update with IR: side %d, angle 0", side);
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                x_prime = x_t_ir;
             }
             if(wall_x == 0)
             {
+                ROS_INFO("IN IR, angle 0, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
 
@@ -191,8 +193,8 @@ public:
         else if( ((theta_prime >= M_PI - eps) && (theta_prime <= M_PI)) ||
                  ((theta_prime <= -M_PI + eps) && (theta_prime >= -M_PI)) )
         {
-            //update only x_t with IR sensors
-            ROS_INFO_ONCE("side %d, angle pi/-pi", side);
+
+            //update only x_t with IR sensors            
             findWall(x_prime, y_prime, side, 3, dist);
             if(wall_x != 0)
             {
@@ -204,17 +206,20 @@ public:
                 {
                     x_t_ir = wall_x*resolution + (dist + robot_radius) - center_x_m;
                 }
-                poseUpdate(x_t_ir, y_t_odom, theta_t_odom);
+                ROS_INFO("update with IR: side %d, angle pi/-pi", side);
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                x_prime = x_t_ir;
             }
             if(wall_x == 0)
             {
+                ROS_INFO("IN IR, angle pi/-pi, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
         }
         else if( (theta_prime <= M_PI_2 + eps) && (theta_prime >= M_PI_2 - eps) )
         {
             //update only y_t with IR sensors
-            ROS_INFO_ONCE("side %d, angle pi/2", side);
+            ROS_INFO("side %d, angle pi/2", side);
             findWall(x_prime, y_prime, side, 2,dist);
             if(wall_y != 0)
             {
@@ -226,17 +231,20 @@ public:
                 {
                     y_t_ir = wall_y*resolution - (dist + robot_radius) - center_y_m;
                 }
-                poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
+                ROS_INFO("update with IR: side %d, angle 90°", side);
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                y_prime = y_t_ir;
             }
             if(wall_y == 0)
             {
+                ROS_INFO("IN IR, angle 90°, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
         }
         else if( (theta_prime <= -M_PI_2 + eps) && (theta_prime >= -M_PI_2 - eps) )
         {
             //update only y_t with IR sensors
-            ROS_INFO_ONCE("side %d, angle -pi/2", side);
+            ROS_INFO("side %d, angle -pi/2", side);
             findWall(x_prime, y_prime, side, 4, dist);
             if(wall_y != 0)
             {
@@ -248,15 +256,19 @@ public:
                 {
                     y_t_ir = wall_y*resolution + (dist + robot_radius) - center_y_m;
                 }
-                poseUpdate(x_t_odom, y_t_ir, theta_t_odom);
+                ROS_INFO("update with IR: side %d, angle -90°", side);
+                poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                y_prime = y_t_ir;
             }
             if(wall_y == 0)
             {
+                ROS_INFO("IN IR, angle 90°, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
             }
         }
         else
         {
+            ROS_INFO("IN IR, no angle condit, no wall");
             poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
         }
     }
@@ -265,9 +277,8 @@ public:
     void findWall(double x_dist, double y_dist, int side, int angle, double dist)
     {
         //cell_dist = floor(dist/resolution);
-        margin_cell = 50;
+        margin_cell = 10;
         x_cell = floor((center_x_m + x_dist)/resolution);
-
         y_cell = floor((center_x_m + y_dist)/resolution);
         int count = 0;
         while( count <= margin_cell)
@@ -275,20 +286,25 @@ public:
             // at angle 0
             if(side == 1 && angle == 1)
             {
-                x_cell--;
-                ROS_INFO("valu in mat %d", loc_map[x_cell+width_map*y_cell]);
+                x_cell--;                
                 if (loc_map[x_cell+width_map*y_cell] == wallValue)
                 {
-                    ROS_INFO("wall, 1,1");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             if(side == 2 && angle == 1)
             {
                 x_cell++;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall,2,1");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             // at angle pi/2
@@ -296,16 +312,23 @@ public:
             {
                 y_cell--;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall, 1,2");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             if(side == 2 && angle == 2)
             {
                 y_cell++;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall, 2,2");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             // at angle -pi or pi
@@ -313,16 +336,24 @@ public:
             {
                 x_cell++;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall, 1,3");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             if(side == 2 && angle == 3)
             {
                 x_cell--;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             // at angle -pi/2
@@ -330,8 +361,12 @@ public:
             {
                 y_cell++;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
 
             }
@@ -339,18 +374,15 @@ public:
             {
                 y_cell--;
                 if (loc_map[x_cell+width_map*y_cell] == wallValue){
-                    ROS_INFO("wall");
-                    break;
+                    wall_x = x_cell;
+                    wall_y = y_cell;
+                    ROS_INFO("wall_x: %d", wall_x);
+                    ROS_INFO("wall_y: %d", wall_y);
+                    return;
                 }
             }
             count++;
-        }
-        if (loc_map[x_cell+width_map*y_cell] == wallValue){
-            ROS_INFO("Wall values assigned")
-            wall_x = x_cell;
-            wall_y = y_cell;
-        }
-        else
+        }        
         {
             wall_x = 0;
             wall_y = 0;
