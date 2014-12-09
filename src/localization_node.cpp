@@ -41,6 +41,7 @@ public:
     double dist_s1, dist_s2, dist_s3, dist_s4;
     double b, r, sampleTime, robot_radius;
     double eps;
+    int wallValue;
 
 
     Localize()
@@ -71,6 +72,7 @@ public:
         b=0.21;
         r=0.05;
         loc_map = std::vector<signed char>(cellNumber);
+        wallValue = -106;
 
         sampleTime = 0.05;
         eps = 8*(M_PI/180.0);//equivalent to 8 deg; given in [rad]
@@ -269,24 +271,23 @@ public:
         y_cell = floor((center_x_m + y_dist)/resolution);
         int count = 0;
         while( count <= margin_cell)
-        {
-            //ROS_INFO("while");
+        {            
             // at angle 0
             if(side == 1 && angle == 1)
             {
                 x_cell--;
                 ROS_INFO("valu in mat %d", loc_map[x_cell+width_map*y_cell]);
-                if (loc_map[x_cell+width_map*y_cell] == 150)
+                if (loc_map[x_cell+width_map*y_cell] == wallValue)
                 {
-                    ROS_INFO("wall");
+                    ROS_INFO("wall, 1,1");
                     break;
                 }
             }
             if(side == 2 && angle == 1)
             {
                 x_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
-                    ROS_INFO("wall");
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                    ROS_INFO("wall,2,1");
                     break;
                 }
             }
@@ -294,16 +295,16 @@ public:
             if(side == 1 && angle == 2)
             {
                 y_cell--;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
-                    ROS_INFO("wall");
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                    ROS_INFO("wall, 1,2");
                     break;
                 }
             }
             if(side == 2 && angle == 2)
             {
                 y_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
-                    ROS_INFO("wall");
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                    ROS_INFO("wall, 2,2");
                     break;
                 }
             }
@@ -311,15 +312,15 @@ public:
             if(side == 1 && angle == 3)
             {
                 x_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
-                    ROS_INFO("wall");
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                    ROS_INFO("wall, 1,3");
                     break;
                 }
             }
             if(side == 2 && angle == 3)
             {
                 x_cell--;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
                     ROS_INFO("wall");
                     break;
                 }
@@ -328,7 +329,7 @@ public:
             if(side == 1 && angle == 4)
             {
                 y_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
                     ROS_INFO("wall");
                     break;
                 }
@@ -337,14 +338,15 @@ public:
             if(side == 2 && angle == 4)
             {
                 y_cell--;
-                if (loc_map[x_cell+width_map*y_cell] == 150){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue){
                     ROS_INFO("wall");
                     break;
                 }
             }
             count++;
         }
-        if (loc_map[x_cell+width_map*y_cell] == 150){
+        if (loc_map[x_cell+width_map*y_cell] == wallValue){
+            ROS_INFO("Wall values assigned")
             wall_x = x_cell;
             wall_y = y_cell;
         }
