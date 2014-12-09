@@ -2,13 +2,12 @@
 #include "math.h"
 #include "ras_arduino_msgs/Encoders.h"
 #include "ras_arduino_msgs/ADConverter.h"
-#include "robot_msgs/IrTransformMsg.h"
 #include "nav_msgs/OccupancyGrid.h"
 #include "vector"
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <boost/foreach.hpp>
-#include "robot_msgs/IrTransformMsg.h"
+//#include "robot_msgs/IrTransformMsg.h"
 #include "tf/transform_listener.h"
 
 
@@ -16,15 +15,14 @@ class Localize
 {
 public:
     ros::NodeHandle n;
-    ros::Subscriber encoder_subscriber;
-    ros::Subscriber sensor_check_sub;
+    ros::Subscriber encoder_subscriber;    
     ros::Subscriber sensor_subscriber;
+    ros::Subscriber grid_subscriber;
     ros::Publisher map_publisher;
     ros::Publisher pose_publisher;
     nav_msgs::OccupancyGrid::ConstPtr map_msg;
     std::vector<signed char> grid_map, loc_map;
     geometry_msgs::PoseStamped poseStamp_msg;
-    robot_msgs::IrTransformMsg sensCheck_msg;
     ras_arduino_msgs::ADConverter sensor_msg;
 
     double x_t_ir, y_t_ir, theta_t_ir;
@@ -55,6 +53,7 @@ public:
     {
         sensor_subscriber = n.subscribe("/ir_sensor_cm", 1, &Localize::sensorCallback, this);        
         encoder_subscriber = n.subscribe("/arduino/encoders", 1, &Localize::encoderCallback,this);        
+        grid_subscriber = n.subscribe("/gridmap", 1, &Localize::getMapCallback, this);
         map_publisher = n.advertise<nav_msgs::OccupancyGrid>("/loc/savedmap",1);
         pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
 
@@ -84,13 +83,18 @@ public:
     {
         x_prime = 0;
         y_prime = 0;
-        if ((sensCheck_msg.s1 == true) && (sensCheck_msg.s3 == true))
-            theta_prime = asin((sensor_msg.ch1 - sensor_msg.ch3)/13.5);
-        else if ((sensCheck_msg.s2 == true) && (sensCheck_msg.s4 == true))
-            theta_prime = asin((sensor_msg.ch4 - sensor_msg.ch2)/13.5);
-        else
-            theta_prime = 0;
+        theta_prime = 0;
     }
+
+    void getMapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg)
+    {
+        map_msg = msg;
+        loc_map = map_msg->data;
+
+        updateLocalization();
+        //publishMap();
+    }
+
     void getMap()
     {
 
@@ -123,8 +127,6 @@ public:
 
         theta_t_odom = ((-r/b)*AngVelLeft + (r/b)*AngVelRight)*sampleTime;
         theta_t_odom = angleBoundaries(theta_t_odom);
-
-
 
     }
 
@@ -287,7 +289,7 @@ public:
             if(side == 1 && angle == 1)
             {
                 x_cell--;                
-                if (loc_map[x_cell+width_map*y_cell] == wallValue)
+                if ( (loc_map[x_cell+width_map*y_cell] == wallValue) || (loc_map[x_cell+width_map*y_cell] == 150) )
                 {
                     wall_x = x_cell;
                     wall_y = y_cell;
@@ -299,7 +301,7 @@ public:
             if(side == 2 && angle == 1)
             {
                 x_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue  || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
                     ROS_INFO("wall_x: %d", wall_x);
@@ -311,7 +313,7 @@ public:
             if(side == 1 && angle == 2)
             {
                 y_cell--;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue  || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
                     ROS_INFO("wall_x: %d", wall_x);
@@ -322,7 +324,7 @@ public:
             if(side == 2 && angle == 2)
             {
                 y_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue  || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
 
@@ -335,7 +337,7 @@ public:
             if(side == 1 && angle == 3)
             {
                 x_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
 
@@ -347,7 +349,7 @@ public:
             if(side == 2 && angle == 3)
             {
                 x_cell--;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
 
@@ -360,7 +362,7 @@ public:
             if(side == 1 && angle == 4)
             {
                 y_cell++;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
 
@@ -373,7 +375,7 @@ public:
             if(side == 2 && angle == 4)
             {
                 y_cell--;
-                if (loc_map[x_cell+width_map*y_cell] == wallValue){
+                if (loc_map[x_cell+width_map*y_cell] == wallValue || (loc_map[x_cell+width_map*y_cell] == 150) ){
                     wall_x = x_cell;
                     wall_y = y_cell;
                     ROS_INFO("wall_x: %d", wall_x);
@@ -439,7 +441,8 @@ int main(int argc, char **argv)
 
     Localize loc;
     loc.init();
-    loc.getMap();
+    loc.getInitialPose();
+    //loc.getMap();
 
 
     ros::Rate loop_rate(20.0);
@@ -447,8 +450,8 @@ int main(int argc, char **argv)
     while(loc.n.ok())
     {
         ros::spinOnce();
-        loc.updateLocalization();
-        loc.publishMap();
+        //loc.updateLocalization();
+        //loc.publishMap();
         loop_rate.sleep();
     }
 

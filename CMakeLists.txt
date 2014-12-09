@@ -27,3 +27,6 @@ add_executable(localization_node src/localization_node.cpp)
 add_dependencies(localization_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(localization_node ${catkin_LIBRARIES})
 
+add_executable(goal_finding src/goal_finding.cpp)
+add_dependencies(goal_finding ${catkin_EXPORTED_TARGETS})
+target_link_libraries(goal_finding ${catkin_LIBRARIES})
