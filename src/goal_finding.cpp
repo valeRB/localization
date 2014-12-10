@@ -14,11 +14,14 @@ public:
     ros::NodeHandle n;
     ros::Subscriber costmap_subscriber;
     ros::Subscriber object_subscriber;
+    ros::Publisher new_obj_publisher;
     std::vector<robot_msgs::detectedObject> objects;
     robot_msgs::detectedObject::ConstPtr obj;
     nav_msgs::OccupancyGrid costmap;
+    robot_msgs::detectedObject new_obj_pose;
     int pos_cell_x, pos_cell_y, max_cells;
     int resolution, width_map;
+    int obj_cell_x, obj_cell_y;
 
     GoalFinder()
     {
@@ -32,6 +35,7 @@ public:
         costmap_subscriber = n.subscribe("/costmap", 1, &GoalFinder::getMapCallback, this);
         object_subscriber = n.subscribe("/allObjects", 1, &GoalFinder::getObjects, this);
         //pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
+        new_obj_publisher = n.advertise<robot_msgs::detectedObject>("/goal_obj", 1);
 
         cellNumber = 500*500;
         resolution = 0.02; //[m]
@@ -45,7 +49,7 @@ public:
 
     }
 
-    void getMap()
+    void getObjects()
     {
 
         rosbag::Bag bag;
@@ -57,7 +61,6 @@ public:
 
         for (rosbag::View::iterator m = obj_view.begin(); m != obj_view.end(); m++)
         {
-
             obj = (*m).instantiate<robot_msgs::detectedObject>();
             objects.push_back(obj);
         }
@@ -72,7 +75,7 @@ public:
 
     void findGoalForPath()
     {
-        for (std::vector<robot_msgs::detectedObject>::iterator it = detected_objects.begin(); it != detected_objects.end(); ++it)
+        for (std::vector<robot_msgs::detectedObject>::iterator it = objects.begin(); it != objects.end(); ++it)
         {
             robot_msgs::detectedObject Obj = *it;
             pos_cell_x = floor(Obj.position.x/resolution);
@@ -86,35 +89,67 @@ public:
                     obj_cell_x = pos_cell_x + count;
                     obj_cell_y = pos_cell_y;
                     break;
-                }
+                } //1
                 else if(costmap.data[(pos_cell_x+count) + width_map*(pos_cell_y+count)] == 0)
                 {
                     obj_cell_x = pos_cell_x + count;
                     obj_cell_y = pos_cell_y + count;
                     break;
-                }
+                } //2
                 else if(costmap.data[(pos_cell_x) + width_map*(pos_cell_y+count)] == 0)
                 {
                     obj_cell_x = pos_cell_x;
                     obj_cell_y = pos_cell_y + count;
                     break;
-                }
+                } //3
                 else if(costmap.data[(pos_cell_x-count) + width_map*(pos_cell_y+count)] == 0)
                 {
                     obj_cell_x = pos_cell_x - count;
                     obj_cell_y = pos_cell_y + count;
                     break;
-                }
-                //...
+                } //4
+                else if(costmap.data[(pos_cell_x-count) + width_map*(pos_cell_y)] == 0)
+                {
+                    obj_cell_x = pos_cell_x - count;
+                    obj_cell_y = pos_cell_y;
+                    break;
+                } //5
+                else if(costmap.data[(pos_cell_x-count) + width_map*(pos_cell_y-count)] == 0)
+                {
+                    obj_cell_x = pos_cell_x - count;
+                    obj_cell_y = pos_cell_y - count;
+                    break;
+                } //6
+                else if(costmap.data[(pos_cell_x) + width_map*(pos_cell_y-count)] == 0)
+                {
+                    obj_cell_x = pos_cell_x;
+                    obj_cell_y = pos_cell_y - count;
+                    break;
+                } //7
+                else if(costmap.data[(pos_cell_x+count) + width_map*(pos_cell_y-count)] == 0)
+                {
+                    obj_cell_x = pos_cell_x + count;
+                    obj_cell_y = pos_cell_y - count;
+                    break;
+                } //8
                 else
                 {
                     count++;
                 }
-
-
-
             }
-
+            else
+            {
+                obj_cell_x = pos_cell_x;
+                obj_cell_y = pos_cell_y;
+            }
+            new_obj_pose.object_id = Obj.object_id;
+            ROS_INFO("Object: %s", new_obj_pose.object_id.c_str());
+            ROS_INFO("cell_x: &d", obj_cell_x );
+            ROS_INFO("cell_y: &d", obj_cell_y );
+            new_obj_pose.header.frame_id = "map";
+            new_obj_pose.position.x = obj_cell_x*resolution;
+            new_obj_pose.position.y = obj_cell_y*resolution;
+            new_obj_publisher.publish(new_obj_pose);
         }
     }
 

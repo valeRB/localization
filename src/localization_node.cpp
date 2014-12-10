@@ -103,7 +103,7 @@ public:
     {
 
         rosbag::Bag bag;
-        bag.open("/home/ras/.ros/map_test_2.bag", rosbag::bagmode::Read);
+        bag.open("/home/ras/.ros/good_map_test.bag", rosbag::bagmode::Read);
 
         //std::vector<std::string> topics;
         //topics.push_back(std::string("/gridmap"));
@@ -476,8 +476,8 @@ int main(int argc, char **argv)
     while(loc.n.ok())
     {
         ros::spinOnce();
-        //loc.updateLocalization();
-        //loc.publishMap();
+        loc.updateLocalization();
+        loc.publishMap();
         loop_rate.sleep();
     }
 
