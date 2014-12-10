@@ -103,7 +103,7 @@ public:
     {
 
         rosbag::Bag bag;
-        bag.open("/home/ras/.ros/good_map_test.bag", rosbag::bagmode::Read);
+        bag.open("/home/ras/catkin_ws/src/mapping/bagfiles/map_test_2top.bag", rosbag::bagmode::Read);
 
         //std::vector<std::string> topics;
         //topics.push_back(std::string("/gridmap"));
@@ -468,7 +468,7 @@ int main(int argc, char **argv)
     Localize loc;
     loc.init();
     loc.getInitialPose();
-    //loc.getMap();
+    loc.getMap();
 
 
     ros::Rate loop_rate(20.0);
