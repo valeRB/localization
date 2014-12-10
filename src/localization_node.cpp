@@ -2,6 +2,7 @@
 #include "math.h"
 #include "ras_arduino_msgs/Encoders.h"
 #include "ras_arduino_msgs/ADConverter.h"
+#include "ras_arduino_msgs/Odometry.h"
 #include "nav_msgs/OccupancyGrid.h"
 #include "vector"
 #include <rosbag/bag.h>
@@ -18,12 +19,14 @@ public:
     ros::Subscriber encoder_subscriber;    
     ros::Subscriber sensor_subscriber;
     ros::Subscriber grid_subscriber;
-    ros::Publisher map_publisher;
     ros::Publisher pose_publisher;
+    ros::Publisher map_publisher;
+    ros::Publisher poseVis_publisher;
     nav_msgs::OccupancyGrid::ConstPtr map_msg;
     std::vector<signed char> grid_map, loc_map;
     geometry_msgs::PoseStamped poseStamp_msg;
     ras_arduino_msgs::ADConverter sensor_msg;
+    ras_arduino_msgs::Odometry new_pose;
 
     double x_t_ir, y_t_ir, theta_t_ir;
     double x_t_odom, y_t_odom, theta_t_odom;
@@ -53,9 +56,10 @@ public:
     {
         sensor_subscriber = n.subscribe("/ir_sensor_cm", 1, &Localize::sensorCallback, this);        
         encoder_subscriber = n.subscribe("/arduino/encoders", 1, &Localize::encoderCallback,this);        
-        grid_subscriber = n.subscribe("/gridmap", 1, &Localize::getMapCallback, this);
+        grid_subscriber = n.subscribe("/gridmap", 1, &Localize::getMapCallback, this);        
         map_publisher = n.advertise<nav_msgs::OccupancyGrid>("/loc/savedmap",1);
-        pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
+        pose_publisher = n.advertise<ras_arduino_msgs::Odometry>("/loc/pose", 1);
+        poseVis_publisher = n.advertise<geometry_msgs::PoseStamped>("/poseVis", 1);
 
         cellNumber = 500*500;
         //loc_map = std::vector<signed char>(cellNumber);
@@ -159,6 +163,7 @@ public:
         {            
             //update only with odometry
             poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+            publishPose();
         }
     }
 
@@ -184,11 +189,13 @@ public:
                 ROS_INFO("update with IR: side %d, angle 0", side);
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
                 x_prime = x_t_ir;
+                publishPose();
             }
             if(wall_x == 0)
             {
                 ROS_INFO("IN IR, angle 0, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                publishPose();
             }
 
         }
@@ -211,11 +218,13 @@ public:
                 ROS_INFO("update with IR: side %d, angle pi/-pi", side);
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
                 x_prime = x_t_ir;
+                publishPose();
             }
             if(wall_x == 0)
             {
                 ROS_INFO("IN IR, angle pi/-pi, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                publishPose();
             }
         }
         else if( (theta_prime <= M_PI_2 + eps) && (theta_prime >= M_PI_2 - eps) )
@@ -236,11 +245,13 @@ public:
                 ROS_INFO("update with IR: side %d, angle 90°", side);
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
                 y_prime = y_t_ir;
+                publishPose();
             }
             if(wall_y == 0)
             {
                 ROS_INFO("IN IR, angle 90°, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                publishPose();
             }
         }
         else if( (theta_prime <= -M_PI_2 + eps) && (theta_prime >= -M_PI_2 - eps) )
@@ -261,17 +272,20 @@ public:
                 ROS_INFO("update with IR: side %d, angle -90°", side);
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
                 y_prime = y_t_ir;
+                publishPose();
             }
             if(wall_y == 0)
             {
                 ROS_INFO("IN IR, angle 90°, no wall");
                 poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+                publishPose();
             }
         }
         else
         {
             ROS_INFO("IN IR, no angle condit, no wall");
             poseUpdate(x_t_odom, y_t_odom, theta_t_odom);
+            publishPose();
         }
     }
 
@@ -403,7 +417,17 @@ public:
         //ROS_INFO("theta_prime %f", theta_prime);
         //ROS_INFO("x_prime %f", x_prime);
         //ROS_INFO("y_prime %f", y_prime);
-        //ROS_INFO("theta_prime %f", theta_prime);
+        //ROS_INFO("theta_prime %f", theta_prime);                        
+
+    }
+
+    void publishPose()
+    {
+        new_pose.x = x_prime + center_x_m;
+        new_pose.y = y_prime + center_y_m;
+        new_pose.theta = theta_prime;
+
+        pose_publisher.publish(new_pose);
 
         poseStamp_msg.pose.position.x = x_prime + center_x_m;
         poseStamp_msg.pose.position.y = y_prime + center_y_m;
@@ -412,8 +436,7 @@ public:
         tf::Quaternion q;
         q.setEuler(0.0, 0.0, M_PI_2 + theta_prime);
         tf::quaternionTFToMsg(q, poseStamp_msg.pose.orientation);
-        pose_publisher.publish(poseStamp_msg);
-
+        poseVis_publisher.publish(poseStamp_msg);
     }
 
     void publishMap()
