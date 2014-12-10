@@ -4,7 +4,9 @@
 #include "vector"
 #include "visualization_msgs/Marker.h"
 #include "robot_msgs/detectedObject.h"
-
+#include <boost/foreach.hpp>
+#include "rosbag/bag.h"
+#include "rosbag/view.h"
 
 class GoalFinder
 {
@@ -13,8 +15,10 @@ public:
     ros::Subscriber costmap_subscriber;
     ros::Subscriber object_subscriber;
     std::vector<robot_msgs::detectedObject> objects;
+    robot_msgs::detectedObject::ConstPtr obj;
     nav_msgs::OccupancyGrid costmap;
-    int obj_cell_x, obj_cell_y, max_cells;
+    int pos_cell_x, pos_cell_y, max_cells;
+    int resolution, width_map;
 
     GoalFinder()
     {
@@ -26,7 +30,7 @@ public:
     void init()
     {
         costmap_subscriber = n.subscribe("/costmap", 1, &GoalFinder::getMapCallback, this);
-        object_subscriber = n.subscribe("/map/object", 1, &GoalFinder::getObjects, this);
+        object_subscriber = n.subscribe("/allObjects", 1, &GoalFinder::getObjects, this);
         //pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/loc/pose", 1);
 
         cellNumber = 500*500;
@@ -41,24 +45,76 @@ public:
 
     }
 
+    void getMap()
+    {
+
+        rosbag::Bag bag;
+        bag.open("/home/ras/.ros/map_test_2.bag", rosbag::bagmode::Read);
+
+        //topics.push_back(std::string("/gridmap"));
+
+        rosbag::View obj_view(bag, rosbag::TopicQuery("/allObjects"));
+
+        for (rosbag::View::iterator m = obj_view.begin(); m != obj_view.end(); m++)
+        {
+
+            obj = (*m).instantiate<robot_msgs::detectedObject>();
+            objects.push_back(obj);
+        }
+        ROS_INFO("Received %d objects", objects.size());
+        bag.close();
+    }
+
     void getMapCallback(const nav_msgs::OccupancyGrid &map_msg)
     {
         costmap = map_msg;
     }
 
-    void getObjects(const std::vector<robot_msgs::detectedObject> &obj_msg)
-    {
-        objects = obj_msg;
-    }
-
     void findGoalForPath()
     {
-        for(int i = obj_cell_x - max_cells; i <= obj_cell_x + max_cells; i++)
+        for (std::vector<robot_msgs::detectedObject>::iterator it = detected_objects.begin(); it != detected_objects.end(); ++it)
         {
-            for(int j = obj_cell_y - max_cells; j <= obj_cell_y + max_cells; i++)
+            robot_msgs::detectedObject Obj = *it;
+            pos_cell_x = floor(Obj.position.x/resolution);
+            pos_cell_y = floor(Obj.position.y/resolution);
+            if(costmap.data[pos_cell_x + width_map*pos_cell_y] != 0)
             {
+                count = 1;
+                while(count <= 10)
+                if(costmap.data[(pos_cell_x+count) + width_map*(pos_cell_y)] == 0)
+                {
+                    obj_cell_x = pos_cell_x + count;
+                    obj_cell_y = pos_cell_y;
+                    break;
+                }
+                else if(costmap.data[(pos_cell_x+count) + width_map*(pos_cell_y+count)] == 0)
+                {
+                    obj_cell_x = pos_cell_x + count;
+                    obj_cell_y = pos_cell_y + count;
+                    break;
+                }
+                else if(costmap.data[(pos_cell_x) + width_map*(pos_cell_y+count)] == 0)
+                {
+                    obj_cell_x = pos_cell_x;
+                    obj_cell_y = pos_cell_y + count;
+                    break;
+                }
+                else if(costmap.data[(pos_cell_x-count) + width_map*(pos_cell_y+count)] == 0)
+                {
+                    obj_cell_x = pos_cell_x - count;
+                    obj_cell_y = pos_cell_y + count;
+                    break;
+                }
+                //...
+                else
+                {
+                    count++;
+                }
+
+
 
             }
+
         }
     }
 

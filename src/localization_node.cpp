@@ -105,11 +105,14 @@ public:
         rosbag::Bag bag;
         bag.open("/home/ras/.ros/map_test_2.bag", rosbag::bagmode::Read);
 
+        //std::vector<std::string> topics;
+        //topics.push_back(std::string("/gridmap"));
+
         rosbag::View view(bag, rosbag::TopicQuery("/gridmap"));
 
         BOOST_FOREACH(rosbag::MessageInstance const m, view)
-        {
-            ROS_INFO("Bag successfully loaded... probably");
+        {            
+            ROS_INFO("Bag loaded");
             map_msg = m.instantiate<nav_msgs::OccupancyGrid>();
             loc_map = map_msg->data;
         }
