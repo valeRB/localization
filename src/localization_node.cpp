@@ -426,8 +426,8 @@ public:
 
     void publishPose()
     {
-        new_pose.x = x_prime + center_x_m;
-        new_pose.y = y_prime + center_y_m;
+        new_pose.x = x_prime;
+        new_pose.y = y_prime;
         new_pose.theta = theta_prime;
 
         pose_publisher.publish(new_pose);
