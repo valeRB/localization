@@ -468,7 +468,6 @@ int main(int argc, char **argv)
     Localize loc;
     loc.init();
     loc.getInitialPose();
-    loc.getMap();
 
 
     ros::Rate loop_rate(20.0);
@@ -476,8 +475,7 @@ int main(int argc, char **argv)
     while(loc.n.ok())
     {
         ros::spinOnce();
-        loc.updateLocalization();
-        loc.publishMap();
+        //loc.updateLocalization();
         loop_rate.sleep();
     }
 
